@@ -73,7 +73,7 @@ def load_dataset():
 
     # Dig up dataset of (context, action, reward) pairs
     # copied from utils_contextual_query_food.
-    path_to_food_dataset = "raw_data/spanet_dataset_with_contexts_iros2024_carrot_banana_cantaloupe_grape.pkl"
+    path_to_food_dataset = "raw_data/spanet_dataset.pkl"
 
     with open(path_to_food_dataset,"rb") as f:
         food_dataset = pkl.load(f)
