@@ -65,7 +65,7 @@ def load_dataset():
 
     # Dig up dataset of (context, action, reward) pairs
     # copied from utils_contextual_query_food.
-    path_to_food_dataset = "cb_with_human_query/feeding_preprocessing/spanet_dataset_with_contexts_iros2024_carrot_banana_cantaloupe_grape.pkl"
+    path_to_food_dataset = "raw_data/spanet_dataset_with_contexts_iros2024_carrot_banana_cantaloupe_grape.pkl"
 
     with open(path_to_food_dataset,"rb") as f:
         food_dataset = pkl.load(f)
@@ -136,7 +136,6 @@ def get_all_dataset_rewards(food_dataset, foodtype, rotationally_symmetric):
 def generate_synthetic_data(T, noise_std, seed):
     """
     Seed should affect the following: context sequence, true rewards, (indirectly - expected rewards), expert choices.
-    Derived from: https://github.com/JinyanSu1/MixUCB/blob/devel/rohan/generate_toy_data.py
 
     Returns:
         data (fields for data: true_theta, true_theta_classification, rounds;
@@ -180,8 +179,6 @@ def generate_spanet_data(T, pca_dim, seed):
     """
     Generates data for T rounds.
     Seed should affect the following: context sequence, true rewards, (indirectly - expected rewards), expert choices.
-
-    Derived from: https://github.com/JinyanSu1/MixUCB/blob/devel/rohan/generate_spanet_data.py
 
     Returns:
         data (fields for data: true_theta, true_theta_classification, rounds;
