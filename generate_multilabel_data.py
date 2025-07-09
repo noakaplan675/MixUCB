@@ -17,10 +17,18 @@ from sklearn.utils import shuffle
 from sklearn.preprocessing import normalize
 from utils.regression_ucb import CombinedLinearModel
 from pathlib import Path
+from itertools import product
 
 # SPANET imports
-from cb_with_human_query.src.utils_contextual_query_food import LinearCBHumanQueryFood
-from cb_with_human_query.src.cb_human_query_utils import full_fooditem_list
+pitch_values = ["tilted_angled","tilted_vertical_skewer","vertical_skewer"]
+roll_values = ["0","90"]
+action_order = list(product(pitch_values,roll_values))
+def convert_action_to_int(row):
+    return action_order.index((row["action_pitch"],row["action_roll"]))
+def convert_int_to_action(i):
+    return action_order[i]
+full_fooditem_list = ['broccoli', 'kiwi', 'honeydew','spinach', 'cantaloupe', 'strawberry', 'carrot', 'cauliflower', \
+                      'lettuce','tomato', 'pepper', 'kale', 'celery', 'apple', 'banana', 'grape']
 import pickle as pkl
 ## UTILITIES
 
@@ -71,7 +79,7 @@ def load_dataset():
         food_dataset = pkl.load(f)
     print(f"Loading food dataset located at {path_to_food_dataset}")
     # Create new action column that maps actions to integers.
-    food_dataset["action"] = food_dataset.apply(LinearCBHumanQueryFood.convert_action_to_int, axis=1)
+    food_dataset["action"] = food_dataset.apply(convert_action_to_int, axis=1)
    
     # Remove rows with null contexts.
     food_dataset = food_dataset[~food_dataset.isna()["context"]]
@@ -106,8 +114,8 @@ def dataset_reward(food_dataset, foodtype, arm, rotationally_symmetric):
     # If the foodtype is rotationally symmetric, then we will lookup the mapping for the action with 0-degree roll.
     arm_to_use = arm
     if foodtype in rotationally_symmetric:
-        pitch, _ = LinearCBHumanQueryFood.convert_int_to_action(arm)
-        arm_to_use = LinearCBHumanQueryFood.convert_action_to_int({"action_pitch":pitch, "action_roll":'0'})
+        pitch, _ = convert_int_to_action(arm)
+        arm_to_use = convert_action_to_int({"action_pitch":pitch, "action_roll":'0'})
 
     # Compute the mean reward for this arm and context, using food_dataset.
 
