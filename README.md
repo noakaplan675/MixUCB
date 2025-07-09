@@ -3,16 +3,13 @@ This repository contains code for the following paper:  "MixUCB: Enhancing Safe 
 
 ## Installation
 
-Create a conda environment using the provided `env.yml` file:
+Create a conda environment using the provided `requirements.txt` file as follows:
 
 ```bash
-conda env create -f env.yml
-```
-
-Or create a virtualenv using the provided `requirements.txt` file:
-
-```bash
+conda create -n mixucb python=3.10
+conda activate mixucb
 pip install -r requirements.txt
+pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cpu
 ```
 
 ## Main experimental script
