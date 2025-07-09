@@ -205,3 +205,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Specific to this repo.
+Figures/
+MedNIST/
+heart_disease/
+spanet/
+synthetic/
+multilabel_data*.pkl
