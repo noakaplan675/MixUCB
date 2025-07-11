@@ -15,7 +15,7 @@ logging.basicConfig(filename='simulation.log', level=logging.INFO,
 
 def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
     assert mode in ['lin','mixI','mixII','mixIII']
-    rationality = 1 # TODO make argument
+    rationality = 1 
     reward_per_time = np.zeros(T)
     query_per_time = np.zeros(T)
     action_per_time = []
@@ -34,7 +34,7 @@ def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
             # if the data length is less than T, we loop over a randomly shuffled permutation of the data.
             ind = i % data_len
             if ind == 0:
-                np.random.shuffle(permutation) # TODO random seed
+                np.random.shuffle(permutation) 
             data_ind = permutation[ind]
         
         # Load pre-generated context and rewards for the current round
@@ -60,7 +60,6 @@ def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
                 query_per_time[i] = 1
 
                 if mode == 'mixIII':
-                    # todo: should mixIII expert know expected or noisy rewards?
                     if len(expected_rewards) == 0:
                         expert_action = np.argmax(actual_rewards)
                     else:
@@ -73,7 +72,6 @@ def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
                 reward = actual_rewards[expert_action]
                 
                 if mode == 'mixIII':
-                    # todo: should mixIII expert know expected or noisy rewards?
                     if len(expected_rewards) == 0:
                         online_reg_oracle.update(context,rewards=actual_rewards)
                     else:
@@ -209,7 +207,6 @@ if __name__ == "__main__":
     parser.add_argument('--learning_rate', type=float, default=0.1)
     parser.add_argument('--alpha', type=float, default=100, help='squared loss confidence radius')
     parser.add_argument('--beta', type=float, default=1000, help='log loss confidence radius')
-    # TODO add temperature?
     
     args = parser.parse_args()
 
@@ -230,7 +227,7 @@ if __name__ == "__main__":
     delta_list = args.delta
     alpha = args.alpha
     beta = args.beta
-    lambda_ = args.lambda_ # TODO two diff lambda
+    lambda_ = args.lambda_ 
     learning_rate = args.learning_rate
     data_name = args.data_name
     mode = args.mode

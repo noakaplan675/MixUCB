@@ -2,8 +2,6 @@ import numpy as np
 import pickle
 from utils.get_data import ContextGenerator
 import argparse
-# import gym
-# import d4rl
 from sklearn.datasets import load_svmlight_file
 from icecream import ic
 import matplotlib.pyplot as plt
@@ -254,8 +252,6 @@ def generate_medical_data(T, seed, data_name='heart_disease', norm_features=Fals
     # Set random seed for reproducibility
     np.random.seed(seed)
     # env = gym.make('maze2d-umaze-v1')
-    # print('obs_space: ', env.observation_space)
-    # print('action_space: ', env.action_space)
     if data_name == 'yeast':
         train_data_path = 'raw_data/multilabel_ds/yeast_train.svm'
         test_data_path = 'raw_data/multilabel_ds/yeast_test.svm'
@@ -327,7 +323,6 @@ def generate_medical_data(T, seed, data_name='heart_disease', norm_features=Fals
         x_train = np.reshape(x_train, (x_train.shape[0], -1))
         x_train = PCA(n_components=6).fit_transform(x_train)
         y_train = imageClass
-        # ic(imageClass)
         y_train = [[i] for i in y_train]
         # shuffle data according to seed
         x_train, y_train = shuffle(x_train, y_train, random_state=seed)
@@ -346,42 +341,6 @@ def generate_medical_data(T, seed, data_name='heart_disease', norm_features=Fals
         x_train = x_train[:T]
         y_train = y_train[:T]
         print(x_train, y_train)
-
-    # ic(label_length)
-    # Get unique elements and their counts
-    # unique_elements, counts = np.unique(label_length, return_counts=True)
-    #
-    # # Print out the unique elements and their counts
-    # for element, count in zip(unique_elements, counts):
-    #     print(f"{element} actions label appears {count} times")
-    # plt.hist(label_length)
-    # plt.xlabel('# actions')
-    # plt.ylabel('sample count')
-    # plt.show()
-    # Generate true weights (theta) for actions
-    # true_weights = np.random.randn(n_actions, n_features)
-    # norm = np.linalg.norm(true_weights)
-    # if norm > 1:
-    #     true_weights = true_weights / norm
-    #
-    # # Initialize context generator
-    # generator = ContextGenerator(true_weights=true_weights, noise_std=noise_std)
-    # # ic(true_weights.shape)  # true_weights.shape: (4, 4)
-    # # Store data for each round
-    # data = {
-    #     "true_theta": true_weights,
-    #     "rounds": []
-    # }
-    #
-    # # Generate data for T rounds
-    # for t in range(T):
-    #     context, true_rewards = generator.generate_context_and_rewards()
-    #
-    #     # Store context, true_rewards, and expert_action for each round
-    #     data["rounds"].append({
-    #         "context": context,  # context.shape: (1, 4)
-    #         "true_rewards": true_rewards,  # true_rewards.shape: (4,)
-    #     })
 
     if norm_features:
         x_train = normalize(x_train)
@@ -403,7 +362,6 @@ def generate_medical_data(T, seed, data_name='heart_disease', norm_features=Fals
         actual_rewards = np.zeros(num_classes) #
         for i, a in enumerate(action):
             actual_rewards[int(a)] = 1.
-        # TODO true reward vs expected reward
 
         data["rounds"].append({
             "context": context,
