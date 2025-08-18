@@ -45,6 +45,20 @@ class MixUCB:
             lcb.append(theta_a.dot(context) - sigma_a)
         return np.array(ucb), np.array(lcb)
 
+    def get_ucb_lcb_subset(self, context, subset_size):
+        context = context.reshape(-1)
+        ucb_scores = []
+        for a in range(self.n_actions):
+            theta_a = inv(self.A[a]).dot(self.b[a])
+            sigma_a = self.alpha * np.sqrt(context.dot(inv(self.A[a]).dot(context)))
+            ucb = theta_a.dot(context) + sigma_a
+            ucb_scores.append((a, ucb))
+        # Sort actions by UCB (descending), take top-k
+        sorted_actions = sorted(ucb_scores, key=lambda tup: -tup[1])
+        top_k = [a for a, _ in sorted_actions[:subset_size]]
+        return top_k
+
+
 
 class CombinedLinearModel(BaseEstimator, ClassifierMixin):
     def __init__(self, input_dim, output_dim, lr=0.01, weight_decay=0.01, epochs=1000, tol=1e-4):
@@ -114,6 +128,8 @@ class CombinedLinearModel(BaseEstimator, ClassifierMixin):
         outputs = self.model(X_tensor)
         return torch.softmax(outputs, dim=1).detach().numpy()
 
+
+
 class OnlineLogisticRegressionOracle:
     def __init__(self, n_features, n_actions, learning_rate, reg_coeff, rad_log, rad_sq=None, max_epochs=1000, tol=1e-4):
         self.model = CombinedLinearModel(n_features, n_actions, lr=learning_rate, weight_decay=reg_coeff/2, epochs=max_epochs, tol=tol)
@@ -176,3 +192,19 @@ class OnlineLogisticRegressionOracle:
             ucb.append(theta[a].dot(context) + sigma)
             lcb.append(theta[a].dot(context) - sigma)
         return np.array(ucb), np.array(lcb)
+    
+
+    def get_ucb_lcb_subset(self, context, subset_size):
+        context = context.reshape(-1)
+        ucb_scores = []
+        theta, X_sum, A_sum = self.get_optimization_parameters()
+        # TODO also implement separate CI
+        combined_cov = [X_sum / self.beta_log**2 + A / self.beta_sq**2 for A in A_sum]
+        for a in range(self.n_actions):
+            sigma = np.sqrt(context.dot(inv(combined_cov[a]).dot(context)))
+            ucb = theta[a].dot(context) + sigma
+            ucb_scores.append((a, ucb))
+        # Sort actions by UCB (descending), take top-k
+        sorted_actions = sorted(ucb_scores, key=lambda tup: -tup[1])
+        top_k = [a for a, _ in sorted_actions[:subset_size]]
+        return top_k

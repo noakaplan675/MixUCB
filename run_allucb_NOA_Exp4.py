@@ -13,7 +13,85 @@ import argparse
 logging.basicConfig(filename='simulation.log', level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
+
+########################################################################################
+########################################################################################
+
+#NOA:
+
+def get_theta_star(d, K):
+    theta_star = {a: np.random.randn(d) for a in range(K)}
+    #normalize:
+    theta_star = {a: v / np.linalg.norm(v) for a, v in theta_star.items()}
+    return theta_star
+
+def f_star_Linear(x, a, theta_star):
+    # Linear Function Model (for synthetic experiments)
+    x = x / np.linalg.norm(x)     # normalize
+    return np.dot(x, theta_star[a])  # theta_star is a dict of parameter vectors
+
+def f_star_Linear_noisy(x, a, theta_star, sigma=0.2, rng=None):
+    x = np.asarray(x, float)
+    x /= (np.linalg.norm(x) + 1e-12)          # safe normalize
+    mu = float(np.dot(x, np.asarray(theta_star[a], float)))
+    if rng is None: rng = np.random.default_rng()
+    return mu + rng.normal(0.0, sigma)        # noisy reward
+
+def query_expert(x_t, A, f_star, theta_star, feedback_type, reward_list_dict, expert_type, alpha_boltz=0.1, noise_std=0.0):
+    """
+    Query a simulated expert based on MixUCB framework.
+    """
+    # Compute true expected rewards
+    rewards = {a: f_star(x_t, a, theta_star) for a in A}
+
+    action_set, reward_list = reward_list_dict[expert_type](rewards,x_t)        # reward_list_dict[expert_type] is a function that gets the action set and reward list using get_ucb_lcb_subset (that has V_sq)
+    boltzmann_prob = np.exp(alpha_boltz * np.array(reward_list)) / np.sum(np.exp(alpha_boltz * np.array(reward_list)))
+    a_tilde = np.random.choice(action_set, p=boltzmann_prob)
+    if feedback_type == "mixI":
+        return a_tilde, None
+    if feedback_type == "mixII":
+        reward = rewards[a_tilde] + np.random.normal(0, noise_std)
+        return a_tilde, reward
+    if feedback_type == "mixIII":
+        # r_tilde = {a: r + np.random.normal(0, noise_std) for a, r in rewards.items()}
+        r_tilde = [r + np.random.normal(0, noise_std) for a, r in rewards.items()]
+        return a_tilde, r_tilde
+    return None, None
+
+
+def expert_estimation(expert_types, Q_t, gamma, eta, query_expert_params):
+
+    def update_expert_distribution(Q_t, est_rewards, eta):
+        logQ = np.log(Q_t + 1e-12) + eta * est_rewards
+        max_logQ = np.max(logQ)  # for numerical stability
+        Q_new = np.exp(logQ - max_logQ)
+        return Q_new / np.sum(Q_new)
+    
+    # Estimate reward for each expert
+    M = len(expert_types)
+    est_rewards = np.zeros(M)
+    for i, etype in enumerate(expert_types):
+        _, simulated_reward = query_expert(*query_expert_params, etype, noise_std=0.1)
+        if simulated_reward is not None:
+            est_rewards[i] = simulated_reward / (Q_t[i] + gamma)
+    # Update Q_t using EXP4 algo
+    Q_t = update_expert_distribution(Q_t, est_rewards, eta)
+    return Q_t
+
+
+def sample_expert(Q_t, w_t, delta, expert_types, expert_indices_per_timestep):
+    M = len(expert_types)
+    # Sample expert M_t∼Q_t:
+    expert_index = np.random.choice(range(M), p=Q_t)
+    expert_type = expert_types[expert_index]
+    expert_indices_per_timestep.append(expert_index if w_t >= delta else -1)
+    return expert_type, expert_indices_per_timestep
+
+
+############################################################################################
+############################################################################################
+
+def run_mixucb(data, T, n_actions, n_features, reward_list_dict, expert_types, delta, online_reg_oracle, Q_t, gamma, eta, mode=None):
     assert mode in ['lin','mixI','mixII','mixIII']
     rationality = 1 
     reward_per_time = np.zeros(T)
@@ -23,6 +101,12 @@ def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
     data_len = len(data["rounds"])
     permutation = np.arange(data_len, dtype=int)
 
+    theta_star = get_theta_star(n_features,n_actions)
+
+    # init expert type per timestep:
+    expert_indices_per_timestep = []
+    total_rewards = []
+    total_reward = 0
     for i in tqdm(range(T)):
         logging.info(f'Running UCB {mode} - round: {i}')
 
@@ -37,17 +121,24 @@ def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
                 np.random.shuffle(permutation) 
             data_ind = permutation[ind]
         
-        # Load pre-generated context and rewards for the current round
-        context = data["rounds"][data_ind]["context"]
-        # expected vs actual rewards
-        expected_rewards = data["rounds"][data_ind]["expected_rewards"] # empty for classification datasets
-        actual_rewards = data["rounds"][data_ind]["actual_rewards"]
-        # noisy expert choice.
-        noisy_expert_choice = data["rounds"][data_ind]["noisy_expert_choice"]
-        
+        # # Load pre-generated context and rewards for the current round
+        # context = data["rounds"][data_ind]["context"]
+        # # expected vs actual rewards
+        # expected_rewards = data["rounds"][data_ind]["expected_rewards"] # empty for classification datasets
+        # actual_rewards = data["rounds"][data_ind]["actual_rewards"]
+        # # noisy expert choice.
+        # noisy_expert_choice = data["rounds"][data_ind]["noisy_expert_choice"]
+
+        # NOA:
+        context = np.random.randn(n_features)
         # Calculate UCB and LCB
         ucb,lcb = online_reg_oracle.get_ucb_lcb(context)
         action_hat = np.argmax(ucb)
+
+        actions_set = list(range(n_actions))
+        expected_rewards = [f_star_Linear_noisy(context, a, theta_star) for a in actions_set]
+        actual_rewards = [f_star_Linear(context, a, theta_star) for a in actions_set]
+        noisy_expert_choice = 0
 
         if mode in ['mixI', 'mixII', 'mixIII']:
             # Determine if querying expert or not
@@ -55,6 +146,10 @@ def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
             width_Ahat = width[action_hat]
             # Print i, action_hat, width_Ahat, delta.
             logging.info(f'Round {i}, action_hat: {action_hat}, width_Ahat: {width_Ahat}, delta: {delta}')
+
+             # Sample Expert type: Sample expert M_t∼Q_t
+            expert_type, expert_indices_per_timestep = sample_expert(Q_t, width_Ahat, delta, expert_types, expert_indices_per_timestep)            
+
             if width_Ahat > delta:
                 # query expert and update online regression
                 query_per_time[i] = 1
@@ -68,7 +163,8 @@ def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
                     if len(expected_rewards) == 0:
                         expert_action = np.argmax(actual_rewards)
                     else:
-                        expert_action = noisy_expert_choice
+                        # Here we need to insert your action choice based on expert feedback
+                        expert_action, _ = query_expert(context, actions_set, f_star_Linear, theta_star, mode, reward_list_dict, expert_type, alpha_boltz=0.1, noise_std=0.1)
                 reward = actual_rewards[expert_action]
                 
                 if mode == 'mixIII':
@@ -101,12 +197,18 @@ def run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=None):
 
         logging.info(f'{mode} UCB: reward {reward}, query: {query_per_time[i]}, totalq: {np.sum(query_per_time)}')
 
-    return reward_per_time, query_per_time, action_per_time
+        # Expert type: Update expert estimation
+        Q_t = expert_estimation(expert_types, Q_t, gamma, eta, (context, actions_set, f_star_Linear, theta_star, mode, reward_list_dict))
+
+        total_reward += reward if reward else f_star_Linear(context, action_per_time[i], theta_star) + np.random.normal(0, 0.1)  
+        total_rewards.append(total_reward / (i + 1) if i > 0 else 0)
+
+    return reward_per_time, query_per_time, action_per_time, expert_indices_per_timestep, total_rewards
+
 
 def run_linear_oracle(data, T, theta):
     reward_per_time = np.zeros(T)
     action_per_time = []
-
 
     data_len = len(data["rounds"])
     permutation = np.arange(data_len, dtype=int)
@@ -257,6 +359,7 @@ if __name__ == "__main__":
         with open(pkl_name, 'wb') as f:
             pickle.dump(dict_to_save, f)
         print('Saved to {}'.format(pkl_name))
+    
     elif mode in ['perfect_exp', 'noisy_exp']:
         results = os.path.join(data_name, f"seed_{seed:02d}", '{}_results'.format(mode))
         os.makedirs(results, exist_ok=True)
@@ -288,7 +391,7 @@ if __name__ == "__main__":
             online_reg_oracle = OnlineLogisticRegressionOracle(n_features, n_actions, learning_rate, lambda_, beta, rad_sq=alpha)
 
             # Run using the pre-generated data
-            reward_per_time, query_per_time, action_per_time = run_mixucb(data, T, n_actions, delta, online_reg_oracle, mode=mode)
+            reward_per_time, query_per_time, action_per_time = run_mixucb(data, T, n_actions, n_features, delta, online_reg_oracle, mode=mode)
 
             print(f"Finished running {mode} UCB for {T} rounds.")
 
