@@ -11,7 +11,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from generate_multilabel_data import generate_synthetic_data
-from run_allucb_NOA_Exp4 import run_mixucb, run_linear_oracle, run_expert   # uses the repo’s run functions
+from run_allucb_NOA_Exp4 import run_mixucb   # uses the repo’s run functions
 from utils.regression_ucb import OnlineLogisticRegressionOracle    # regression + UCB online oracle
 from matplotlib.collections import LineCollection
 from matplotlib.lines import Line2D
@@ -103,7 +103,7 @@ def plot_query_reward_expertType(
     feedback_type,
     expert_types,
     delta,
-    plot_title="Expert Usage Over Time"
+    plot_title="EXP4: Expert Usage Over Time"
 ):
     """
     Styled to match newer plot_query_reward code.
@@ -220,18 +220,18 @@ def phi(x, a, K):
 
 actions_set = list(range(n_actions))
 
-# expert_types = ["compare", "demonstrate", "improve", "reward_punish", "off"]
-expert_types = ["improve", "reward_punish", "off"]
+expert_types = ["compare", "demonstrate", "improve", "reward_punish", "off"]
+# expert_types = ["improve", "reward_punish", "off"]
 
 reward_list_dict = {
-    # "compare": lambda rewards, context: (
-    #     subset := oracle.get_ucb_lcb_subset(context, 2),
-    #     [rewards[a] for a in subset if a in rewards]
-    # ),
-    # "demonstrate": lambda rewards, context: (
-    #     subset := actions_set,
-    #     [rewards[a] for a in subset if a in rewards]
-    # ),
+    "compare": lambda rewards, context: (
+        subset := oracle.get_ucb_lcb_subset(context, 2),
+        [rewards[a] for a in subset if a in rewards]
+    ),
+    "demonstrate": lambda rewards, context: (
+        subset := actions_set,
+        [rewards[a] for a in subset if a in rewards]
+    ),
     "improve": lambda rewards, context: (
         subset := oracle.get_ucb_lcb_subset(context, 1) + [max(rewards, key=rewards.get)],
         [rewards[a] for a in subset if a in rewards]
@@ -249,7 +249,6 @@ reward_list_dict = {
 
 
 M = len(expert_types)
-Q_t = np.ones(M) / M
 
 eta = 0.1   # learning rate
 gamma = 0.01  # exploration parameter
@@ -297,6 +296,7 @@ for mode in feedback_types:
         oracle = OnlineLogisticRegressionOracle(
             n_features, n_actions, lr, lambda_, beta_lr, rad_sq=beta_sq
         )
+        Q_t = np.ones(M) / M
         r_t, q_t, a_t, expert_indices_per_timestep, total_rewards = run_mixucb(
             data=data,
             T=T,
