@@ -154,18 +154,18 @@ def phi(x, a, K):
 
 actions_set = list(range(n_actions))
 
-# expert_types = ["compare", "demonstrate", "improve", "reward_punish", "off"]
-expert_types = ["improve", "reward_punish", "off"]
+expert_types = ["compare", "demonstrate", "improve", "reward_punish", "off"]
+# expert_types = ["improve", "reward_punish", "off"]
 
 reward_list_dict = {
-    # "compare": lambda rewards, context: (
-    #     subset := oracle.get_ucb_lcb_subset(context, 2),
-    #     [rewards[a] for a in subset if a in rewards]
-    # ),
-    # "demonstrate": lambda rewards, context: (
-    #     subset := actions_set,
-    #     [rewards[a] for a in subset if a in rewards]
-    # ),
+    "compare": lambda rewards, context: (
+        subset := oracle.get_ucb_lcb_subset(context, 2),
+        [rewards[a] for a in subset if a in rewards]
+    ),
+    "demonstrate": lambda rewards, context: (
+        subset := actions_set,
+        [rewards[a] for a in subset if a in rewards]
+    ),
     "improve": lambda rewards, context: (
         subset := oracle.get_ucb_lcb_subset(context, 1) + [max(rewards, key=rewards.get)],
         [rewards[a] for a in subset if a in rewards]
@@ -215,7 +215,7 @@ rows = []
 
 # MixUCB family (lin, mixI, mixII, mixIII)
 for expert_type in expert_types:
-    for mode in ["lin", "mixI", "mixII", "mixIII"]:
+    for mode in ["mixI", "mixII"]:      #["lin", "mixI", "mixII", "mixIII"]
         # For 'lin' there is no Δ list in the repo – it internally treats Δ as [0] (no query path). 
         _deltas = [0.0] if mode == "lin" else deltas
         for delta in _deltas:
@@ -234,29 +234,39 @@ for expert_type in expert_types:
                 mode=mode,
             )  # returns reward_per_time, query_per_time, action_per_time 
 
+            #for the polt:
+            cum_queries_per_time = [int(q_t[:i].sum()) for i in range(len(q_t))]
+            cum_auto_rewards_per_time = [avg_autonomous_reward(r_t[:i], q_t[:i]) for i in range(len(q_t))]
             rows.append(dict(
-                mode=mode,
+                feedback_type=mode,
                 delta=float(delta),
+                expert_type=expert_type,
                 queries=int(q_t.sum()),
                 avg_auto_reward=avg_autonomous_reward(r_t, q_t),
                 avg_total_reward=r_t.mean(),
+                cum_auto_rewards_per_time=cum_auto_rewards_per_time, 
+                cum_queries_per_time=cum_queries_per_time 
             ))
 
 
-            # PLOT:
-            query_nums = [int(q_t[:i].sum()) for i in range(len(q_t))]
-            total_auto_rewards = [avg_autonomous_reward(r_t[:i], q_t[:i]) for i in range(len(q_t))]
-            feedback_type = mode
-            expert_type = expert_type
-            plot_query_reward(query_nums,                  # cumulative or per-step; set is_cumulative accordingly
-                            total_auto_rewards,          # per-step rewards array
-                            feedback_type,
-                            expert_type,
-                            delta,
-                            is_cumulative=True,          # flip to False if passing per-step counts
-                            smooth_window=25,            # tweak as you like
-                            show_query_markers=False
-                        )
+            # # PLOT - query_nums, total_auto_rewards as function of time:
+            # query_nums = [int(q_t[:i].sum()) for i in range(len(q_t))]
+            # total_auto_rewards = [avg_autonomous_reward(r_t[:i], q_t[:i]) for i in range(len(q_t))]
+            # feedback_type = mode
+            # expert_type = expert_type
+            # plot_query_reward(query_nums,                  # cumulative or per-step; set is_cumulative accordingly
+            #                 total_auto_rewards,          # per-step rewards array
+            #                 feedback_type,
+            #                 expert_type,
+            #                 delta,
+            #                 is_cumulative=True,          # flip to False if passing per-step counts
+            #                 smooth_window=25,            # tweak as you like
+            #                 show_query_markers=False
+            #             )
+
+
+
+
 
 df = pd.DataFrame(rows)
 print(df)
@@ -269,7 +279,7 @@ print(f"Saved results -> {out_path.resolve()}")
 # (Optional) Tiny sanity plot
 try:
     import matplotlib.pyplot as plt
-    for mode in ["lin", "mixI", "mixII", "mixIII"]:
+    for mode in ["mixI", "mixII", "mixIII"]:
         sub = df[df["mode"] == mode]
         xs = sub["delta"].fillna(0.0)
         plt.plot(xs, sub["avg_total_reward"], marker="o", label=mode)

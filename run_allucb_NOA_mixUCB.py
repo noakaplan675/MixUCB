@@ -141,6 +141,14 @@ def run_mixucb(data, T, n_actions, n_features, reward_list_dict, expert_type, de
             reward = actual_rewards[action_hat]
             online_reg_oracle.update(context, action=action_hat, reward=reward)
 
+        # sanity check - is theta inside confidence set? (if is FALSE more than 5% of the time - beta_sq too small)
+        per_action_vals, global_val = is_inside_ellipsoid(online_reg_oracle, theta_star)
+        # print("per-action:", per_action_vals)
+        # print("global:", global_val)
+        if "global_history" not in locals():
+            global_history = []
+        global_history.append(global_val)
+
         reward_per_time[i] = reward
 
         if query_per_time[i]:
@@ -150,7 +158,42 @@ def run_mixucb(data, T, n_actions, n_features, reward_list_dict, expert_type, de
 
         logging.info(f'{mode} UCB: reward {reward}, query: {query_per_time[i]}, totalq: {np.sum(query_per_time)}')
 
+    inside_ellipsoid_percent = 100 * np.mean(np.array(global_history) < 1.0)
+    print(f"Percent of timesteps with theta inside ellipsoid (global_val<1): {inside_ellipsoid_percent:.2f}%")
+
     return reward_per_time, query_per_time, action_per_time
+
+
+def is_inside_ellipsoid(oracle, theta_star):
+    # estimated parameters (K,d)
+    theta_hat = oracle.get_model_params()
+    # true parameters (K,d)
+    theta_true = np.stack([theta_star[a] for a in sorted(theta_star.keys())])
+
+    # get design matrices and radii
+    theta, X_sum, A_sum = oracle.get_optimization_parameters()
+    beta_log, beta_sq = oracle.beta_log, oracle.beta_sq
+
+    # 1) per-action confidence values:
+    combined_covs = [X_sum / beta_log**2 + A / beta_sq**2 for A in A_sum]
+    per_action_vals = []
+    for a in range(len(theta_hat)):
+        diff = theta_hat[a] - theta_true[a]
+        per_action_vals.append(diff @ np.linalg.inv(combined_covs[a]) @ diff)
+
+    # 2) global d*K confidence value:
+    # flatten both estimates
+    theta_hat_flat = theta_hat.flatten()
+    theta_true_flat = theta_true.flatten()
+    diff = theta_hat_flat - theta_true_flat
+    # build block-diagonal covariance (approx global V_sq)
+    from scipy.linalg import block_diag
+    combined_cov_global = block_diag(*combined_covs)
+    global_val = diff @ np.linalg.inv(combined_cov_global) @ diff
+
+    return per_action_vals, global_val
+
+
 
 def run_linear_oracle(data, T, theta):
     reward_per_time = np.zeros(T)

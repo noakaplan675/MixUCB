@@ -312,32 +312,37 @@ for mode in feedback_types:
             mode=mode,
         )  # returns reward_per_time, query_per_time, action_per_time 
 
+        cum_queries_per_time = [int(q_t[:i].sum()) for i in range(len(q_t))]
+        cum_auto_rewards_per_time = [avg_autonomous_reward(r_t[:i], q_t[:i]) for i in range(len(q_t))]
         rows.append(dict(
-            mode=mode,
+            feedback_type=mode,
             delta=float(delta),
+            expert_type="MetaChoice",
             queries=int(q_t.sum()),
             avg_auto_reward=avg_autonomous_reward(r_t, q_t),
             avg_total_reward=r_t.mean(),
+            cum_auto_rewards_per_time=cum_auto_rewards_per_time, 
+            cum_queries_per_time=cum_queries_per_time 
         ))
 
 
-        # PLOT:
-        query_nums = [int(q_t[:i].sum()) for i in range(len(q_t))]
-        total_rewards = [avg_autonomous_reward(r_t[:i], q_t[:i]) for i in range(len(q_t))]
-        plot_query_reward_expertType(
-                query_nums=query_nums,
-                total_rewards=total_rewards,
-                expert_indices_per_timestep=expert_indices_per_timestep,
-                feedback_type=mode,
-                expert_types=expert_types,
-                delta=delta
-            )
+        # # PLOT - query_nums, total_auto_rewards as function of time:
+        # query_nums = [int(q_t[:i].sum()) for i in range(len(q_t))]
+        # total_rewards = [avg_autonomous_reward(r_t[:i], q_t[:i]) for i in range(len(q_t))]
+        # plot_query_reward_expertType(
+        #         query_nums=query_nums,
+        #         total_rewards=total_rewards,
+        #         expert_indices_per_timestep=expert_indices_per_timestep,
+        #         feedback_type=mode,
+        #         expert_types=expert_types,
+        #         delta=delta
+        #     )
 
 df = pd.DataFrame(rows)
 print(df)
 
 # Save a compact summary like your Excel sheet idea
-out_path = Path("MixUCB_compare.xlsx")
+out_path = Path("MixUCB_compare_MetaChoice.xlsx")
 df.to_excel(out_path, index=False)
 print(f"Saved results -> {out_path.resolve()}")
 
